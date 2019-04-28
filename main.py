@@ -46,6 +46,17 @@ def get_all_listings(html: str) -> List[Listing]:
 
 
 def add_listings_to_db(all_listings: List[Listing]) -> int:
+    """Adds listings to the DB table
+
+    Args:
+        all_listings: (List[Listing]), listings that should be added
+
+    Returns:
+        int: if adding listing to DB was successful
+
+    Raises:
+        Exception: if committing to the DB went wrong
+    """
     for listing in all_listings:
         session.add(CraigslistHousing(
                 id=listing.listing_id,
