@@ -1,3 +1,4 @@
+import urllib
 from typing import List, Union
 
 import requests
@@ -6,14 +7,39 @@ from bs4 import BeautifulSoup
 from listing import Listing
 from models import CraigslistHousing, session
 
-URL = 'https://sfbay.craigslist.org/search/sby/apa?hasPic=1&bundleDuplicates=1&min_price=1100&max_price=1800&availabilityMode=0&sale_date=all+dates'
+
+def build_url(**kwargs):
+    """Build the URL with query parameters
+
+    Args:
+        **kwargs: (dict), any more query parameters can be passed to the URL
+
+    Returns:
+        str: the built URL
+    """
+    base_url = 'https://sfbay.craigslist.org/search/sby/apa?'
+
+    query_params = {
+        'hasPic': '1',
+        'bundleDuplicates': '1',
+        'min_price': '1100',
+        'max_price': '1800',
+        'availabilityMode': '0',
+        'sale_date': 'all+dates',
+    }
+
+    # more query parameters passed, add them to the dict
+    if kwargs:
+        query_params.update(kwargs)
+
+    return base_url + urllib.parse.urlencode(query_params)
 
 
-def get_page(url: str = URL) -> Union[int, str]:
+def get_page_html(url: str) -> Union[int, str]:
     """Send request to Craigslist
 
     Args:
-        url: (Optional[str]), URL to send request to
+        url: (str), URL to send request to
 
     Returns:
         Union[int, str]: return HTML content if HTTP status code is 200, else
@@ -25,7 +51,7 @@ def get_page(url: str = URL) -> Union[int, str]:
     return req.status_code
 
 
-def get_all_listings(html: str) -> List[Listing]:
+def get_all_listings(html: str) -> Union[List[Listing], bool]:
     """Gets each individual listing
 
     Args:
@@ -36,13 +62,15 @@ def get_all_listings(html: str) -> List[Listing]:
     """
     soup = BeautifulSoup(html, 'lxml')
     ul = soup.find('ul', class_='rows')
-    all_listings = []
-    for listing in ul.contents:
-        # newline also gets created from ``.contents``
-        if listing != '\n':
-            post = Listing(html=listing)
-            all_listings.append(post)
-    return all_listings
+    if not check_if_empty_page(ul.contents):
+        all_listings = []
+        for listing in ul.contents:
+            # newline also gets created from ``.contents``
+            if listing != '\n':
+                post = Listing(html=listing)
+                all_listings.append(post)
+        return all_listings
+    return False
 
 
 def add_listings_to_db(all_listings: List[Listing]) -> int:
@@ -70,12 +98,26 @@ def add_listings_to_db(all_listings: List[Listing]) -> int:
         raise e
 
 
+def check_if_empty_page(content: list) -> bool:
+    """Checks to see if there are any listings in the `ul` HTML
+
+    Args:
+        content: (list), HTML content inside of the `ul`
+
+    Returns:
+        bool: whether there are listings or not
+    """
+    return True if len(content) > 1 else False
+
+
 if __name__ == '__main__':
     # send request to URL
-    html_content = get_page()
-    # check that the HTTP status code is OK
-    if isinstance(html_content, str):
-        listings = get_all_listings(html=html_content)
-        add_listings_to_db(all_listings=listings)
-    else:
-        raise Exception(f'Failure: HTTP Code --> {html_content}')
+    req_url = build_url()
+    html_content = get_page_html(url=req_url)
+    while True:
+        # check that the HTTP status code is OK
+        if isinstance(html_content, str):
+            listings = get_all_listings(html=html_content)
+            # add_listings_to_db(all_listings=listings)
+        else:
+            raise Exception(f'Failure: HTTP Code --> {html_content}')
