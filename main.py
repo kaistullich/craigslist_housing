@@ -36,7 +36,7 @@ def build_url(**kwargs):
 
 
 def get_page_html(url: str) -> Union[int, str]:
-    """Send request to Craigslist
+    """Send request to Craigslist and get the HTML content
 
     Args:
         url: (str), URL to send request to
@@ -44,21 +44,26 @@ def get_page_html(url: str) -> Union[int, str]:
     Returns:
         Union[int, str]: return HTML content if HTTP status code is 200, else
                         will return the HTTP status code
+
+    Raises:
+        requests.exceptions.RequestException: if HTTP status code != 200
     """
     req = requests.get(url=url)
     if req.status_code == 200:
         return req.text
-    return req.status_code
+    raise requests.exceptions.RequestException('')
 
 
 def get_all_listings(html: str) -> Union[List[Listing], bool]:
-    """Gets each individual listing
+    """Get all listings on the page and parse them with ``listing.Listing()``
 
     Args:
-        html:
+        html: (str), all HTML returned from the page that was requested
 
     Returns:
-
+        Union[List[Listing], bool]: Either all parsed listings or ``False`` if
+                            we have reached the end of all listings and should
+                            not continue to parse.
     """
     soup = BeautifulSoup(html, 'lxml')
     ul = soup.find('ul', class_='rows')
@@ -111,13 +116,12 @@ def check_if_empty_page(content: list) -> bool:
 
 
 if __name__ == '__main__':
-    # send request to URL
+    # build the URL with the query parameters
     req_url = build_url()
+    # send request to URL
     html_content = get_page_html(url=req_url)
     while True:
-        # check that the HTTP status code is OK
-        if isinstance(html_content, str):
-            listings = get_all_listings(html=html_content)
-            # add_listings_to_db(all_listings=listings)
-        else:
-            raise Exception(f'Failure: HTTP Code --> {html_content}')
+        # get listings
+        listings = get_all_listings(html=html_content)
+        # add them to the DB
+        add_listings_to_db(all_listings=listings)
